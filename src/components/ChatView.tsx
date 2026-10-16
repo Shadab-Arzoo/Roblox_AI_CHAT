@@ -333,7 +333,7 @@ function CodeBlock({ code, language, onExecuteCode, mcpConnected }: CodeBlockPro
         setExecStatus(result);
       } else {
         await navigator.clipboard.writeText(code);
-        setExecStatus("📋 Copied! Press Enter in Command Bar");
+        setExecStatus("⚡ Luau code copied.");
       }
     } catch (err: any) {
       setExecStatus(`Error: ${err?.message || String(err)}`);
@@ -366,9 +366,9 @@ function CodeBlock({ code, language, onExecuteCode, mcpConnected }: CodeBlockPro
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-lg transition-all duration-150 ${
               execStatus
                 ? "bg-emerald-600 hover:bg-emerald-500"
-                : "bg-gradient-to-r from-accent via-purple-600 to-indigo-600 hover:brightness-110 shadow-accent/25 active:scale-95"
+                : "bg-gradient-to-r from-accent via-purple-600 to-indigo-600 hover:brightness-110 shadow-accent/25 active:scale-95 cursor-pointer"
             }`}
-            title={mcpConnected ? "Execute directly into Roblox Studio via MCP" : "Run in Studio (or paste in Command Bar)"}
+            title="Execute directly into active Roblox Studio Workspace"
           >
             {executing ? (
               <>

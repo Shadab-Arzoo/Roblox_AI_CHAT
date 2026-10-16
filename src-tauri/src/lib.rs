@@ -1,6 +1,9 @@
 mod providers;
 mod mcp;
 mod wiggle;
+mod studio;
+
+use studio::StudioInfo;
 
 use providers::ollama::OllamaClient;
 use providers::cloud::CloudClient;
@@ -154,6 +157,34 @@ async fn mcp_list_studios(state: State<'_, AppState>) -> Result<Vec<StudioInstan
     state.mcp.list_studios()
 }
 
+// ─── Direct Roblox Studio Commands ─────────────────────────────────
+
+#[tauri::command]
+async fn studio_status() -> Result<StudioInfo, String> {
+    if let Some((_hwnd, title, pid)) = studio::find_studio_window() {
+        Ok(StudioInfo {
+            running: true,
+            title,
+            pid,
+        })
+    } else {
+        Ok(StudioInfo {
+            running: false,
+            title: String::new(),
+            pid: 0,
+        })
+    }
+}
+
+#[tauri::command]
+async fn studio_execute(code: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        studio::run_code_in_studio(&code)
+    })
+    .await
+    .map_err(|e| format!("Execution error: {}", e))?
+}
+
 // ─── Window Commands ───────────────────────────────────────────────
 
 #[tauri::command]
@@ -270,6 +301,9 @@ pub fn run() {
             mcp_tools,
             mcp_call_tool,
             mcp_list_studios,
+            // Direct Roblox Studio
+            studio_status,
+            studio_execute,
             // Window
             set_compact_mode,
             set_fullscreen_mode,

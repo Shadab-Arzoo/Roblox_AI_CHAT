@@ -29,19 +29,19 @@ import type {
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-const ROBLOX_STUDIO_SYSTEM_PROMPT = `You are ForgePilot, an autonomous AI engine that directly executes actions inside Roblox Studio.
-You are paired directly with the user's active Roblox Studio workspace.
+const ROBLOX_STUDIO_SYSTEM_PROMPT = `You are ForgePilot, the autonomous Roblox Studio developer engine.
+You are connected directly to the user's active Roblox Studio workspace session.
 
 ABSOLUTE MANDATES:
-1. NEVER act like a teacher, manual, or tutorial bot.
-2. NEVER explain steps for the user to perform manually (e.g. NEVER say "Open Roblox Studio", "Open Explorer", "Open Command Bar", "Paste this code", or "Press Run").
-3. NEVER write tutorial explanations before or after code.
-4. When the user asks to build, create, spawn, modify, or script anything:
-   - Output ONE brief action status line: "⚡ Executing: Creating [item] in Roblox Studio Workspace..."
-   - IMMEDIATELY output the complete, self-contained, working Luau code in a \`\`\`luau code block.
-   - Do NOT output any words, disclaimers, or steps after the code block.
-5. The code is executed automatically in Roblox Studio. Ensure all created Instances are properly parented to workspace, anchored, colored, and sized.
-6. Target ONLY Roblox Studio Luau. Never mention AutoCAD or other software.`;
+1. NEVER provide instructions, guides, manuals, or tutorials.
+2. NEVER tell the user to "Open Roblox Studio", "Open Explorer", "Open Command Bar", "Paste this code", or "Press Run".
+3. NEVER write text before or after the code block explaining how to use it.
+4. When the user asks to build, create, spawn, modify, change the sky, add lighting, or script anything:
+   - Output ONLY ONE brief status line: "⚡ Executing: [action description] in Roblox Studio Workspace..."
+   - IMMEDIATELY follow with the full, complete, working Luau code block in \`\`\`luau ... \`\`\`.
+   - Output NOTHING else.
+5. All code is executed autonomously into the user's active Roblox Studio place. Ensure all Instances are anchored, parented to workspace (or appropriate service), sized, and colored.
+6. If the user complains that you gave instructions or says "do it instead of explaining", DO NOT APOLOGIZE. IMMEDIATELY output the exact Luau code block to perform what they wanted.`;
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -414,15 +414,17 @@ export default function App() {
   const handleExecuteInStudio = useCallback(async (code: string): Promise<string> => {
     try {
       if (isTauri) {
-        let currentStatus = mcpStatus;
-        if (!currentStatus?.connected) {
-          try {
-            currentStatus = await invoke<McpStatus>("mcp_connect");
-            setMcpStatus(currentStatus);
-          } catch (_) {}
-        }
+        // 1. Direct Native Studio Automation: Injects and executes directly into open Place
+        const directResult = await invoke<string>("studio_execute", { code });
+        await navigator.clipboard.writeText(code).catch(() => {});
+        return directResult;
+      }
+    } catch (e: any) {
+      console.warn("Direct studio_execute returned:", e);
 
-        if (currentStatus?.connected) {
+      // 2. Fallback to MCP if StudioMCP tool is connected
+      try {
+        if (mcpStatus?.connected) {
           const tools = await invoke<any[]>("mcp_tools").catch(() => []);
           const execTool = tools.find((t: any) =>
             t.name.includes("execute") ||
@@ -453,13 +455,18 @@ export default function App() {
             return "⚡ Executed in Roblox Studio Workspace!";
           }
         }
+      } catch (mcpErr) {
+        console.error("MCP fallback failed:", mcpErr);
       }
-    } catch (e) {
-      console.error("MCP Studio execution failed:", e);
+
+      const errMsg = typeof e === "string" ? e : (e?.message || JSON.stringify(e));
+      return errMsg.includes("Roblox Studio is not running")
+        ? "⚠️ Roblox Studio not detected. Launch Studio & open a Place."
+        : `⚡ ${errMsg}`;
     }
 
     await navigator.clipboard.writeText(code).catch(() => {});
-    return "📋 Copied! Press Enter in Studio Command Bar";
+    return "⚡ Luau script generated & copied.";
   }, [mcpStatus]);
 
   const handleToggleWiggle = useCallback(async () => {

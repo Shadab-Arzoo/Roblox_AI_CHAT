@@ -134,14 +134,49 @@ export function SettingsPanel({
     setLoadingStudios(false);
   }, [mcpStatus?.connected]);
 
+  // Direct Studio detection state
+  const [studioInfo, setStudioInfo] = useState<{ running: boolean; title: string; pid: number } | null>(null);
+  const [checkingStudio, setCheckingStudio] = useState(false);
+  const [testingStudioExec, setTestingStudioExec] = useState(false);
+  const [studioExecMsg, setStudioExecMsg] = useState<string | null>(null);
+
+  const checkStudio = useCallback(async () => {
+    setCheckingStudio(true);
+    try {
+      const info = await invoke<{ running: boolean; title: string; pid: number }>("studio_status");
+      setStudioInfo(info);
+    } catch (e) {
+      setStudioInfo({ running: false, title: "", pid: 0 });
+    } finally {
+      setCheckingStudio(false);
+    }
+  }, []);
+
+  const handleTestStudioExecution = async () => {
+    setTestingStudioExec(true);
+    setStudioExecMsg(null);
+    try {
+      const testCode = `local p = Instance.new("Part"); p.Name = "ForgePilotTestPart"; p.BrickColor = BrickColor.new("Bright violet"); p.Material = Enum.Material.Neon; p.Size = Vector3.new(4,1,2); p.Position = Vector3.new(0, 5, 0); p.Anchored = true; p.Parent = workspace; print("⚡ ForgePilot Connected to Roblox Studio!")`;
+      const res = await invoke<string>("studio_execute", { code: testCode });
+      setStudioExecMsg(res);
+    } catch (err: any) {
+      setStudioExecMsg(`⚠️ ${err?.message || String(err)}`);
+    } finally {
+      setTestingStudioExec(false);
+    }
+  };
+
   useEffect(() => {
     if (isOpen && activeTab === "provider" && providerType === "ollama") {
       loadOllamaModels();
     }
-    if (isOpen && activeTab === "studio" && mcpStatus?.connected) {
-      loadStudios();
+    if (isOpen && activeTab === "studio") {
+      checkStudio();
+      if (mcpStatus?.connected) {
+        loadStudios();
+      }
     }
-  }, [isOpen, activeTab, providerType, loadOllamaModels, loadStudios, mcpStatus?.connected]);
+  }, [isOpen, activeTab, providerType, loadOllamaModels, loadStudios, checkStudio, mcpStatus?.connected]);
 
   const handleProviderChange = async (type: string) => {
     setProviderType(type);
@@ -462,89 +497,129 @@ export function SettingsPanel({
 
         {activeTab === "studio" && (
           <div className="space-y-3">
-            {/* MCP status */}
-            <div className="bg-bg-secondary/60 rounded-lg border border-border-subtle p-3 space-y-2">
+            {/* Primary Direct Roblox Studio Execution Engine */}
+            <div className="bg-bg-secondary/70 rounded-xl border border-white/10 p-3.5 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      studioInfo?.running
+                        ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse"
+                        : "bg-amber-400/80"
+                    }`}
+                  />
+                  <div>
+                    <div className="text-xs font-bold text-text-primary">
+                      {studioInfo?.running ? "Roblox Studio Detected & Connected" : "Roblox Studio Not Detected"}
+                    </div>
+                    <div className="text-[10px] text-text-muted">
+                      {studioInfo?.running
+                        ? studioInfo.title || "Place Active • Ready for Direct Execution"
+                        : "Launch Roblox Studio and open your Place"}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={checkStudio}
+                  disabled={checkingStudio}
+                  type="button"
+                  className="px-2 py-1 rounded-md text-[11px] font-medium bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 transition-all cursor-pointer"
+                >
+                  {checkingStudio ? "Checking..." : "Recheck"}
+                </button>
+              </div>
+
+              {/* Status details pill */}
+              <div className="p-2.5 rounded-lg bg-bg-tertiary/60 border border-white/[0.06] space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-text-muted">Execution Mode:</span>
+                  <span className="font-semibold text-accent">⚡ Direct Workspace Automator</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-text-muted">Process:</span>
+                  <span className="font-mono text-[10px] text-text-secondary">
+                    {studioInfo?.running ? `RobloxStudioBeta.exe (PID: ${studioInfo.pid})` : "Inactive"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-text-muted">Auto-Run:</span>
+                  <span className="font-semibold text-emerald-400">Enabled (Instant in Workspace)</span>
+                </div>
+              </div>
+
+              {/* Test Studio Execution Action */}
+              <div className="pt-1 flex flex-col gap-2">
+                <button
+                  onClick={handleTestStudioExecution}
+                  disabled={testingStudioExec || !studioInfo?.running}
+                  type="button"
+                  className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-accent to-purple-600 hover:brightness-110 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {testingStudioExec ? (
+                    <span>⚡ Executing Test in Studio...</span>
+                  ) : (
+                    <>
+                      <span>⚡ Test Direct Execution in Studio</span>
+                    </>
+                  )}
+                </button>
+                {studioExecMsg && (
+                  <div className="p-2 rounded-lg bg-white/[0.05] border border-white/10 text-[11px] text-emerald-300 font-mono text-center">
+                    {studioExecMsg}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* How Autonomous Execution Works Card */}
+            <div className="bg-bg-secondary/40 border border-accent/20 rounded-xl p-3.5 space-y-2 text-xs">
+              <div className="flex items-center gap-1.5 font-semibold text-accent">
+                <span>⚡ How Autonomous Execution Works:</span>
+              </div>
+              <p className="text-[11px] text-text-secondary leading-relaxed">
+                ForgePilot is designed to execute completely automatically. When you ask ForgePilot to create models, scripts, or change the sky/lighting in chat:
+              </p>
+              <ul className="space-y-1.5 text-[11px] text-text-muted list-disc pl-4">
+                <li>ForgePilot synthesizes the complete Luau script.</li>
+                <li>It directly runs the script inside your open Roblox Studio session.</li>
+                <li>Everything appears immediately inside your 3D workspace. Zero manual setup required!</li>
+              </ul>
+            </div>
+
+            {/* Advanced: Studio MCP Proxy (Optional) */}
+            <div className="bg-bg-secondary/40 border border-white/[0.08] rounded-xl p-3 space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${mcpStatus?.connected ? "bg-success" : "bg-text-muted"}`} />
                   <span className="text-xs font-medium text-text-primary">
-                    {mcpStatus?.connected ? `Connected (${mcpStatus.server_name || "Roblox Studio"})` : "Disconnected"}
+                    Advanced: Studio MCP ({mcpStatus?.connected ? "Connected" : "Standby"})
                   </span>
                 </div>
                 {mcpStatus?.connected ? (
                   <button
                     onClick={onMcpDisconnect}
-                    className="text-[11px] text-error hover:text-red-400 transition-colors"
+                    type="button"
+                    className="text-[11px] text-error hover:text-red-400 cursor-pointer"
                   >
                     Disconnect
                   </button>
                 ) : (
                   <button
                     onClick={onMcpConnect}
-                    className="text-[11px] text-accent hover:text-accent-hover transition-colors"
+                    type="button"
+                    className="text-[11px] text-accent hover:text-accent-hover cursor-pointer"
                   >
                     Connect
                   </button>
                 )}
               </div>
-              {mcpStatus?.error && (
-                <div className="text-[11px] text-error bg-error/10 rounded px-2 py-1.5">
-                  {mcpStatus.error}
-                </div>
-              )}
-            </div>
-
-            {/* Direct Studio Integration Guide */}
-            <div className="bg-bg-secondary/40 border border-accent/20 rounded-xl p-3.5 space-y-2 text-xs">
-              <div className="flex items-center gap-1.5 font-semibold text-accent">
-                <span>⚡ How Autonomous Execution Works:</span>
-              </div>
-              <p className="text-[11px] text-text-secondary leading-relaxed">
-                ForgePilot connects to Roblox Studio to directly execute Luau scripts, create parts, and build systems inside your active project.
-              </p>
-              <div className="bg-bg-tertiary/70 rounded-lg p-2.5 space-y-1.5 text-[11px] text-text-muted">
-                <div className="font-medium text-text-primary">Enable 100% Autonomous Execution:</div>
-                <ol className="list-decimal pl-4 space-y-1">
-                  <li>In Roblox Studio, click <b className="text-text-primary">File &gt; Studio Settings</b>.</li>
-                  <li>Select <b className="text-text-primary">Assistant</b> in the sidebar.</li>
-                  <li>Toggle <b className="text-accent">MCP Servers: ON</b>.</li>
-                  <li>Open your place — ForgePilot will run scripts inside Studio automatically!</li>
-                </ol>
-              </div>
-            </div>
-
-            {/* Studio Instances */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-text-secondary">Running Studios</label>
-                {mcpStatus?.connected && (
-                  <button
-                    onClick={loadStudios}
-                    className="text-[11px] text-accent hover:text-accent-hover transition-colors"
-                  >
-                    Refresh
-                  </button>
-                )}
-              </div>
               {loadingStudios ? (
-                <div className="text-[11px] text-text-muted">Detecting Studio instances...</div>
-              ) : studios.length === 0 ? (
-                <div className="text-[11px] text-text-muted bg-bg-secondary/40 p-3 rounded-lg border border-border-subtle">
-                  No active Roblox Studio instances detected. Launch Roblox Studio and open a place.
+                <div className="text-[10px] text-text-muted">Scanning for MCP instances...</div>
+              ) : studios.length > 0 ? (
+                <div className="text-[10px] text-text-muted">
+                  {studios.length} MCP instance(s) detected.
                 </div>
-              ) : (
-                <div className="space-y-1">
-                  {studios.map((s) => (
-                    <div
-                      key={s.studio_id}
-                      className="flex items-center justify-between px-3 py-2 bg-bg-secondary/60 rounded-lg text-xs"
-                    >
-                      <span className="font-medium text-text-primary">{s.name}</span>
-                      <span className="text-[10px] text-text-muted font-mono">{s.studio_id}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
         )}
