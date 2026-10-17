@@ -161,17 +161,20 @@ async fn mcp_list_studios(state: State<'_, AppState>) -> Result<Vec<StudioInstan
 
 #[tauri::command]
 async fn studio_status() -> Result<StudioInfo, String> {
+    let bridge_connected = studio::is_bridge_connected();
     if let Some((_hwnd, title, pid)) = studio::find_studio_window() {
         Ok(StudioInfo {
             running: true,
             title,
             pid,
+            bridge_connected,
         })
     } else {
         Ok(StudioInfo {
             running: false,
             title: String::new(),
             pid: 0,
+            bridge_connected,
         })
     }
 }
@@ -275,6 +278,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(move |app| {
             wiggle::start_wiggle_detector(app.handle().clone(), wiggle_flag_clone);
+            let _ = studio::get_bridge_queue();
             Ok(())
         })
         .manage(AppState {

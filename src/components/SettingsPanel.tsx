@@ -135,7 +135,7 @@ export function SettingsPanel({
   }, [mcpStatus?.connected]);
 
   // Direct Studio detection state
-  const [studioInfo, setStudioInfo] = useState<{ running: boolean; title: string; pid: number } | null>(null);
+  const [studioInfo, setStudioInfo] = useState<{ running: boolean; title: string; pid: number; bridge_connected?: boolean } | null>(null);
   const [checkingStudio, setCheckingStudio] = useState(false);
   const [testingStudioExec, setTestingStudioExec] = useState(false);
   const [studioExecMsg, setStudioExecMsg] = useState<string | null>(null);
@@ -143,10 +143,10 @@ export function SettingsPanel({
   const checkStudio = useCallback(async () => {
     setCheckingStudio(true);
     try {
-      const info = await invoke<{ running: boolean; title: string; pid: number }>("studio_status");
+      const info = await invoke<{ running: boolean; title: string; pid: number; bridge_connected?: boolean }>("studio_status");
       setStudioInfo(info);
     } catch (e) {
-      setStudioInfo({ running: false, title: "", pid: 0 });
+      setStudioInfo({ running: false, title: "", pid: 0, bridge_connected: false });
     } finally {
       setCheckingStudio(false);
     }
